@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AniWalls - Dynamic Anime Wallpaper Portal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            black: '#08080d',
+                            darker: '#040407',
+                            card: 'rgba(16, 16, 26, 0.75)',
+                            cyan: '#00f3ff',
+                            magenta: '#ff007f',
+                            purple: '#9d4edd',
+                            neonGreen: '#00ff66'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        orbitron: ['Orbitron', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'neon-cyan': '0 0 15px rgba(0, 243, 255, 0.4), 0 0 30px rgba(0, 243, 255, 0.15)',
+                        'neon-magenta': '0 0 15px rgba(255, 0, 127, 0.4), 0 0 30px rgba(255, 0, 127, 0.15)',
+                        'neon-purple': '0 0 15px rgba(157, 78, 221, 0.4), 0 0 30px rgba(157, 78, 221, 0.15)'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & Font Awesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #040407;
+            color: #f1f5f9;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Canvas Background */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Cursor Glow */
+        .cursor-glow {
+            width: 320px;
+            height: 320px;
+            background: radial-gradient(circle, rgba(0, 243, 255, 0.12) 0%, rgba(255, 0, 127, 0.05) 50%, transparent 70%);
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            transition: transform 0.05s ease-out;
+            z-index: 9999;
+        }
+
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(14, 14, 24, 0.75);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-panel-hover:hover {
+            border-color: rgba(0, 243, 255, 0.4);
+            transform: translateY(-5px);
+            box-shadow: 0 12px 25px -5px rgba(0, 243, 255, 0.2);
+        }
+
+        /* Gradient Text */
+        .gradient-text {
+            background: linear-gradient(135deg, #00f3ff 0%, #ff007f 50%, #9d4edd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% 200%;
+            animation: gradientShift 6s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #040407;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1a1a2e;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f3ff;
+        }
+
+        /* Device Preview Frames */
+        .frame-16-9 {
+            aspect-ratio: 16 / 9;
+            max-width: 100%;
+        }
+        .frame-9-16 {
+            aspect-ratio: 9 / 16;
+            max-height: 70vh;
+        }
+        .frame-4-3 {
+            aspect-ratio: 4 / 3;
+            max-width: 90%;
+        }
+
+        /* Skeleton Animation */
+        @keyframes pulseSkeleton {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 0.5; }
+        }
+        .animate-skeleton {
+            animation: pulseSkeleton 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Drawer Overlay */
+        .drawer-open {
+            transform: translateX(0) !important;
+        }
+
+        /* Modal Overlay */
+        .modal-active {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+    </style>
+</head>
+<body class="selection:bg-cyber-magenta selection:text-white">
+
+    <!-- Glowing Custom Cursor -->
+    <div id="cursor-glow" class="cursor-glow hidden md:block"></div>
+
+    <!-- Canvas Particle Background -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Top Navigation Header -->
+    <nav class="sticky top-0 z-40 glass-panel border-b border-white/10 px-4 md:px-8 py-3.5 transition-all">
+        <div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <!-- Brand Logo -->
+            <a href="#" class="flex items-center gap-3 group shrink-0">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyber-cyan via-cyber-magenta to-cyber-purple flex items-center justify-center shadow-neon-cyan group-hover:scale-105 transition-transform">
+                    <i class="fa-solid fa-[#000000] fa-image text-cyber-black text-lg"></i>
+                </div>
+                <span class="font-orbitron text-2xl font-black tracking-wider text-white">ANI<span class="gradient-text">WALLS</span></span>
+            </a>
+
+            <!-- Search Bar (Desktop) -->
+            <div class="hidden md:flex relative flex-1 max-w-md mx-6">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <input type="text" id="desktop-search-input" placeholder="Search keywords, artist, tags..." 
+                    class="w-full pl-11 pr-4 py-2 bg-black/50 border border-white/10 rounded-full text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyber-cyan focus:ring-1 focus:ring-cyber-cyan transition-all">
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-3">
+                <button id="open-bookmarks-btn" class="px-4 py-2 rounded-xl glass-panel border-white/10 hover:border-cyber-magenta text-sm font-semibold flex items-center gap-2 transition-all hover:shadow-neon-magenta">
+                    <i class="fa-solid fa-bookmark text-cyber-magenta"></i>
+                    <span class="hidden sm:inline">Bookmarks</span>
+                    <span id="bookmark-count-badge" class="bg-cyber-magenta text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </button>
+
+                <button id="fetch-random-btn" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyber-cyan to-cyber-purple text-cyber-black font-extrabold text-sm hover:opacity-90 transition-all shadow-neon-cyan flex items-center gap-2">
+                    <i class="fa-solid fa-rotate text-cyber-black"></i>
+                    <span class="hidden sm:inline">Refresh API</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Application Container -->
+    <main class="max-w-7xl mx-auto px-4 md:px-8 pt-8 pb-16 space-y-10">
+
+        <!-- Hero Spotlight Banner -->
+        <section class="relative rounded-3xl overflow-hidden glass-panel border border-white/10 p-6 md:p-12 lg:p-14 flex flex-col justify-end min-h-[380px] group">
+            <div id="hero-bg" class="absolute inset-0 bg-cover bg-center transition-all duration-700 filter brightness-50 scale-100 group-hover:scale-105" 
+                 style="background-image: url('https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1600&auto=format&fit=crop');"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-cyber-black via-cyber-black/60 to-transparent"></div>
+            
+            <div class="relative z-10 max-w-2xl space-y-4">
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-xs font-semibold uppercase tracking-wider backdrop-blur-md">
+                    <span class="w-2 h-2 rounded-full bg-cyber-cyan animate-pulse"></span> Ultra HD Anime Wallpapers
+                </div>
+                <h1 class="font-orbitron text-3xl md:text-5xl font-black text-white leading-tight">
+                    NEXT-GEN <span class="gradient-text">DESKTOP & MOBILE</span> WALLPAPERS
+                </h1>
+                <p class="text-gray-300 text-sm md:text-base font-light leading-relaxed">
+                    Fetched live from open API endpoints (`nekos.best`, `waifu.im`). Download 4K & HD wallpapers directly to your desktop or smartphone without registration.
+                </p>
+                <div class="flex flex-wrap items-center gap-4 pt-2">
+                    <button id="hero-download-btn" class="px-6 py-3 rounded-xl bg-cyber-cyan text-cyber-black font-bold text-sm tracking-wide shadow-neon-cyan hover:bg-white transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-download"></i> Download Featured (4K)
+                    </button>
+                    <button id="hero-preview-btn" class="px-6 py-3 rounded-xl glass-panel border-white/20 hover:border-cyber-magenta text-white font-semibold text-sm transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-eye text-cyber-magenta"></i> Inspect Resolution
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Controls: Category Filters & Search -->
+        <section class="space-y-6">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                    <h2 class="font-orbitron text-2xl md:text-3xl font-extrabold text-white tracking-wide">
+                        LIVE <span class="gradient-text">GALLERY</span>
+                    </h2>
+                    <p class="text-xs text-gray-400 mt-1">Select category endpoints to stream fresh wallpapers directly from API sources.</p>
+                </div>
+
+                <!-- API Category Filter Buttons -->
+                <div id="category-filters" class="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-none">
+                    <button data-category="all" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-cyber-cyan text-cyber-cyan transition-all shrink-0">
+                        <i class="fa-solid fa-border-all mr-1.5"></i> All Mixed
+                    </button>
+                    <button data-category="neko" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-white/10 text-gray-400 hover:text-white hover:border-white/30 transition-all shrink-0">
+                        <i class="fa-solid fa-cat mr-1.5"></i> Neko
+                    </button>
+                    <button data-category="waifu" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-white/10 text-gray-400 hover:text-white hover:border-white/30 transition-all shrink-0">
+                        <i class="fa-solid fa-heart mr-1.5"></i> Waifu
+                    </button>
+                    <button data-category="husbando" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-white/10 text-gray-400 hover:text-white hover:border-white/30 transition-all shrink-0">
+                        <i class="fa-solid fa-user-ninja mr-1.5"></i> Husbando
+                    </button>
+                    <button data-category="kitsune" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-white/10 text-gray-400 hover:text-white hover:border-white/30 transition-all shrink-0">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i> Kitsune
+                    </button>
+                    <button data-category="cyberpunk" class="cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-white/10 text-gray-400 hover:text-white hover:border-white/30 transition-all shrink-0">
+                        <i class="fa-solid fa-microchip mr-1.5"></i> Cyberpunk
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search input (Mobile) -->
+            <div class="md:hidden relative w-full">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+                <input type="text" id="mobile-search-input" placeholder="Search keywords..." 
+                    class="w-full pl-11 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyber-cyan">
+            </div>
+
+            <!-- Dynamic Wallpaper Grid -->
+            <div id="wallpaper-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <!-- Skeleton Loader Cards (Initial State) -->
+            </div>
+
+            <!-- Loading & Load More Trigger -->
+            <div class="flex flex-col items-center justify-center pt-8 space-y-4">
+                <button id="load-more-btn" class="px-8 py-3.5 rounded-xl bg-gradient-to-r from-cyber-cyan via-cyber-magenta to-cyber-purple text-cyber-black font-extrabold text-sm shadow-neon-cyan hover:opacity-90 transition-all flex items-center gap-3">
+                    <i id="load-more-icon" class="fa-solid fa-cloud-arrow-down"></i>
+                    <span>Fetch More Wallpapers</span>
+                </button>
+                <span id="api-status-text" class="text-xs text-gray-500 font-medium">Connected to nekos.best & waifu.im APIs</span>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/10 glass-panel py-8 px-4 md:px-8 mt-16">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-400">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-image text-cyber-cyan"></i>
+                <span class="font-orbitron font-bold text-gray-300">AniWalls Portal © 2026</span>
+            </div>
+            <p class="text-center">High-resolution images powered by public open APIs (`nekos.best` & `waifu.im`). All media rights belong to their respective artists.</p>
+        </div>
+    </footer>
+
+    <!-- Fullscreen Preview & Aspect Ratio Test Modal -->
+    <div id="preview-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-lg opacity-0 pointer-events-none transition-all duration-300">
+        <div class="glass-panel border border-white/20 rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden shadow-2xl relative transform scale-95 transition-all duration-300" id="modal-container">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between bg-black/40">
+                <div class="flex items-center gap-3">
+                    <span id="modal-tag" class="px-2.5 py-0.5 rounded-full bg-cyber-cyan/10 border border-cyber-cyan/30 text-cyber-cyan text-xs font-semibold">
+                        4K Ultra HD
+                    </span>
+                    <span id="modal-artist" class="text-xs text-gray-400 font-medium">Artist: Unknown</span>
+                </div>
+
+                <!-- Aspect Ratio Switcher Controls -->
+                <div class="hidden sm:flex items-center gap-2 glass-panel p-1 rounded-xl border-white/10 text-xs">
+                    <span class="text-gray-400 text-[10px] uppercase font-bold px-2">Frame Preview:</span>
+                    <button id="aspect-16-9" class="px-2.5 py-1 rounded-lg bg-cyber-cyan/20 text-cyber-cyan font-bold transition-all">16:9 Desktop</button>
+                    <button id="aspect-9-16" class="px-2.5 py-1 rounded-lg hover:bg-white/10 text-gray-300 font-medium transition-all">9:16 Mobile</button>
+                    <button id="aspect-4-3" class="px-2.5 py-1 rounded-lg hover:bg-white/10 text-gray-300 font-medium transition-all">4:3 Tablet</button>
+                </div>
+
+                <!-- Close Modal Button -->
+                <button id="close-modal-btn" class="w-9 h-9 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-gray-300 hover:text-white hover:border-cyber-cyan transition-all">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content & Image Frame -->
+            <div class="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center bg-black/50 relative min-h-[300px]">
+                
+                <!-- Aspect Ratio Container Box -->
+                <div id="preview-frame-container" class="relative frame-16-9 w-full flex items-center justify-center overflow-hidden rounded-2xl border border-white/10 shadow-2xl transition-all duration-300 bg-black/80">
+                    <img id="modal-image" src="" alt="Wallpaper Preview" class="w-full h-full object-cover transition-all">
+                </div>
+
+                <!-- Mobile Aspect Ratio Switcher (Shown on small screens) -->
+                <div class="flex sm:hidden items-center gap-2 mt-4 glass-panel p-1 rounded-xl border-white/10 text-xs">
+                    <button id="mobile-aspect-16-9" class="px-2.5 py-1 rounded-lg bg-cyber-cyan/20 text-cyber-cyan font-bold">16:9</button>
+                    <button id="mobile-aspect-9-16" class="px-2.5 py-1 rounded-lg hover:bg-white/10 text-gray-300">9:16</button>
+                    <button id="mobile-aspect-4-3" class="px-2.5 py-1 rounded-lg hover:bg-white/10 text-gray-300">4:3</button>
+                </div>
+            </div>
+
+            <!-- Modal Action Footer -->
+            <div class="px-6 py-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 bg-black/60">
+                <div class="text-xs text-gray-400">
+                    <span id="modal-dimensions" class="font-mono text-gray-300">3840 x 2160 px</span> • High Definition Lossless PNG/JPG
+                </div>
+
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <button id="modal-bookmark-btn" class="flex-1 sm:flex-none px-5 py-2.5 rounded-xl glass-panel border border-white/20 hover:border-cyber-magenta text-white font-semibold text-xs transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bookmark text-cyber-magenta"></i> Favorite
+                    </button>
+                    <button id="modal-download-btn" class="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyber-cyan to-cyber-magenta text-cyber-black font-extrabold text-xs shadow-neon-cyan hover:opacity-90 transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-download"></i> Direct Download HD
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bookmarks Drawer -->
+    <div id="bookmarks-drawer" class="fixed inset-y-0 right-0 z-50 w-full sm:w-96 glass-panel border-l border-white/10 shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+        <div class="p-6 border-b border-white/10 flex items-center justify-between bg-black/40">
+            <div class="flex items-center gap-2.5">
+                <i class="fa-solid fa-bookmark text-cyber-magenta text-lg"></i>
+                <h3 class="font-orbitron font-bold text-white text-lg">BOOKMARKS</h3>
+            </div>
+            <button id="close-bookmarks-btn" class="text-gray-400 hover:text-white transition-colors">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <div id="bookmarks-list" class="flex-1 overflow-y-auto p-6 space-y-4">
+            <!-- Items rendered via JS -->
+        </div>
+
+        <div class="p-6 border-t border-white/10 bg-black/60">
+            <button id="clear-bookmarks-btn" class="w-full py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs font-semibold transition-all">
+                Clear All Bookmarks
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 glass-panel border border-cyber-cyan/40 text-white px-5 py-3 rounded-xl shadow-neon-cyan transform translate-y-20 opacity-0 transition-all duration-300 flex items-center gap-3">
+        <i class="fa-solid fa-circle-check text-cyber-cyan text-base"></i>
+        <span id="toast-message" class="text-sm font-semibold">Wallpaper Download Started!</span>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // API Configuration & Endpoint Sources
+        const API_SOURCES = {
+            neko: 'https://nekos.best/api/v2/neko?amount=12',
+            waifu: 'https://api.waifu.im/search?is_nsfw=false&limit=12',
+            husbando: 'https://nekos.best/api/v2/husbando?amount=12',
+            kitsune: 'https://nekos.best/api/v2/kitsune?amount=12',
+            cyberpunk: 'https://nekos.best/api/v2/wave?amount=12'
+        };
+
+        // Fallback static high-res anime wallpapers in case APIs get rate-limited
+        const FALLBACK_WALLPAPERS = [
+            {
+                id: 'fb-1',
+                url: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1600&auto=format&fit=crop',
+                artist: 'CyberOtaku',
+                category: 'cyberpunk',
+                resolution: '3840x2160'
+            },
+            {
+                id: 'fb-2',
+                url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1600&auto=format&fit=crop',
+                artist: 'NeonAesthetics',
+                category: 'cyberpunk',
+                resolution: '3840x2160'
+            },
+            {
+                id: 'fb-3',
+                url: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=1600&auto=format&fit=crop',
+                artist: 'AnimeMaster',
+                category: 'waifu',
+                resolution: '1920x1080'
+            },
+            {
+                id: 'fb-4',
+                url: 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=1600&auto=format&fit=crop',
+                artist: 'UfotableVibes',
+                category: 'action',
+                resolution: '3840x2160'
+            }
+        ];
+
+        // Global State
+        let currentCategory = 'all';
+        let currentSearchQuery = '';
+        let wallpapersList = [];
+        let bookmarks = JSON.parse(localStorage.getItem('aniWallsBookmarks')) || [];
+        let activeModalWallpaper = null;
+
+        // DOM Element Cache
+        const wallpaperGrid = document.getElementById('wallpaper-grid');
+        const loadMoreBtn = document.getElementById('load-more-btn');
+        const loadMoreIcon = document.getElementById('load-more-icon');
+        const apiStatusText = document.getElementById('api-status-text');
+        const previewModal = document.getElementById('preview-modal');
+        const modalContainer = document.getElementById('modal-container');
+        const modalImage = document.getElementById('modal-image');
+        const previewFrameContainer = document.getElementById('preview-frame-container');
+        const bookmarksDrawer = document.getElementById('bookmarks-drawer');
+        const bookmarksList = document.getElementById('bookmarks-list');
+        const bookmarkCountBadge = document.getElementById('bookmark-count-badge');
+        const desktopSearchInput = document.getElementById('desktop-search-input');
+        const mobileSearchInput = document.getElementById('mobile-search-input');
+
+        // Render Loading Skeleton Cards
+        function renderSkeletons(count = 8) {
+            wallpaperGrid.innerHTML = '';
+            for (let i = 0; i < count; i++) {
+                const skeleton = document.createElement('div');
+                skeleton.className = 'glass-panel rounded-2xl overflow-hidden h-72 border border-white/5 animate-skeleton flex flex-col justify-between p-4';
+                skeleton.innerHTML = `
+                    <div class="w-full h-44 bg-white/10 rounded-xl"></div>
+                    <div class="space-y-2 pt-2">
+                        <div class="w-2/3 h-4 bg-white/10 rounded"></div>
+                        <div class="w-1/3 h-3 bg-white/10 rounded"></div>
+                    </div>
+                `;
+                wallpaperGrid.appendChild(skeleton);
+            }
+        }
+
+        // Fetch Wallpapers from External APIs with Graceful Fallback
+        async function fetchWallpapers(category = 'all', append = false) {
+            if (!append) {
+                renderSkeletons(8);
+                wallpapersList = [];
+            }
+
+            loadMoreIcon.className = 'fa-solid fa-spinner animate-spin';
+            apiStatusText.textContent = 'Fetching dynamic anime streams...';
+
+            let newFetchedItems = [];
+
+            try {
+                if (category === 'all' || category === 'neko') {
+                    const res = await fetch(API_SOURCES.neko);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const items = data.results.map((item, idx) => ({
+                            id: `neko-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+                            url: item.url,
+                            artist: item.artist_name || 'Anonymous Artist',
+                            category: 'neko',
+                            resolution: '3840x2160'
+                        }));
+                        newFetchedItems.push(...items);
+                    }
+                }
+
+                if (category === 'all' || category === 'waifu') {
+                    const res = await fetch(API_SOURCES.waifu);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const items = data.images.map((item, idx) => ({
+                            id: `waifu-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+                            url: item.url,
+                            artist: item.artist ? item.artist.name : 'Waifu.im Creator',
+                            category: 'waifu',
+                            resolution: item.width ? `${item.width}x${item.height}` : '1920x1080'
+                        }));
+                        newFetchedItems.push(...items);
+                    }
+                }
+
+                if (category === 'husbando' || category === 'kitsune' || category === 'cyberpunk') {
+                    const targetEndpoint = API_SOURCES[category];
+                    const res = await fetch(targetEndpoint);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const items = data.results.map((item, idx) => ({
+                            id: `${category}-${Date.now()}-${idx}`,
+                            url: item.url,
+                            artist: item.artist_name || 'Anime Artist',
+                            category: category,
+                            resolution: '3840x2160'
+                        }));
+                        newFetchedItems.push(...items);
+                    }
+                }
+
+            } catch (err) {
+                console.warn('API Fetching encountered an error. Using fallbacks:', err);
+                apiStatusText.textContent = 'API rate limited. Loaded backup high-res dataset.';
+            }
+
+            // Fallback injection if empty
+            if (newFetchedItems.length === 0) {
+                newFetchedItems = FALLBACK_WALLPAPERS.map(item => ({
+                    ...item,
+                    id: `${item.id}-${Math.random().toString(36).substr(2, 4)}`
+                }));
+            }
+
+            // Shuffle array for fresh feel
+            newFetchedItems.sort(() => Math.random() - 0.5);
+
+            if (append) {
+                wallpapersList.push(...newFetchedItems);
+            } else {
+                wallpapersList = newFetchedItems;
+            }
+
+            loadMoreIcon.className = 'fa-solid fa-cloud-arrow-down';
+            apiStatusText.textContent = `Displaying ${wallpapersList.length} wallpapers from live API streams`;
+
+            renderGallery();
+            
+            // Update Hero image with first result if available
+            if (wallpapersList.length > 0 && !append) {
+                document.getElementById('hero-bg').style.backgroundImage = `url('${wallpapersList[0].url}')`;
+            }
+        }
+
+        // Render Gallery Cards
+        function renderGallery() {
+            const filtered = wallpapersList.filter(item => {
+                const matchesCategory = currentCategory === 'all' || item.category === currentCategory;
+                const matchesSearch = item.artist.toLowerCase().includes(currentSearchQuery.toLowerCase()) || 
+                                      item.category.toLowerCase().includes(currentSearchQuery.toLowerCase());
+                return matchesCategory && matchesSearch;
+            });
+
+            wallpaperGrid.innerHTML = '';
+
+            if (filtered.length === 0) {
+                wallpaperGrid.innerHTML = `
+                    <div class="col-span-full text-center py-16 space-y-3">
+                        <i class="fa-solid fa-ghost text-4xl text-cyber-magenta opacity-60"></i>
+                        <h3 class="font-orbitron text-lg text-white font-bold">No Wallpapers Found</h3>
+                        <p class="text-xs text-gray-400">Try switching your category filter or refreshing the API feed.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filtered.forEach(item => {
+                const isSaved = bookmarks.some(b => b.id === item.id);
+                const card = document.createElement('div');
+                card.className = 'glass-panel glass-panel-hover rounded-2xl overflow-hidden flex flex-col group border border-white/10 relative';
+                card.innerHTML = `
+                    <div class="relative h-60 overflow-hidden bg-black/40">
+                        <img src="${item.url}" alt="${item.category}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy">
+                        <div class="absolute inset-0 bg-gradient-to-t from-cyber-black via-transparent to-transparent opacity-80"></div>
+                        
+                        <!-- Category Badge -->
+                        <div class="absolute top-3 left-3">
+                            <span class="px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase text-cyber-cyan">
+                                ${item.category}
+                            </span>
+                        </div>
+
+                        <!-- Bookmark Button -->
+                        <button onclick="toggleBookmark('${item.id}')" class="absolute top-3 right-3 w-9 h-9 rounded-full glass-panel border border-white/20 flex items-center justify-center text-white hover:text-cyber-magenta transition-all">
+                            <i class="${isSaved ? 'fa-solid text-cyber-magenta' : 'fa-regular'} fa-bookmark text-xs"></i>
+                        </button>
+
+                        <!-- Bottom Meta -->
+                        <div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs">
+                            <span class="text-gray-300 font-mono text-[11px] bg-black/50 px-2 py-0.5 rounded backdrop-blur-sm">
+                                ${item.resolution}
+                            </span>
+                            <span class="text-cyber-cyan text-xs font-semibold flex items-center gap-1">
+                                <i class="fa-solid fa-circle-check text-[10px]"></i> Ultra HD
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="p-4 flex items-center justify-between gap-2 border-t border-white/5 bg-black/30">
+                        <div class="min-w-0">
+                            <p class="text-xs text-gray-300 font-semibold truncate">By ${item.artist}</p>
+                            <p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">${item.category}</p>
+                        </div>
+                        
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button onclick="openPreview('${item.id}')" class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-all text-xs" title="Preview Frame">
+                                <i class="fa-solid fa-expand"></i>
+                            </button>
+                            <button onclick="downloadWallpaper('${item.url}', '${item.category}')" class="px-3 py-1.5 rounded-xl bg-cyber-cyan text-cyber-black font-extrabold hover:bg-white transition-all text-xs flex items-center gap-1.5 shadow-neon-cyan">
+                                <i class="fa-solid fa-download text-[10px]"></i> Save
+                            </button>
+                        </div>
+                    </div>
+                `;
+                wallpaperGrid.appendChild(card);
+            });
+        }
+
+        // Direct Download Engine via Fetch & Blob
+        async function downloadWallpaper(imgUrl, categoryName) {
+            showToast('Preparing HD file download...');
+            try {
+                const response = await fetch(imgUrl);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = `AniWalls-${categoryName}-${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                showToast('Download completed successfully!');
+            } catch (err) {
+                console.error('Blob download failed, opening direct tab fallback:', err);
+                window.open(imgUrl, '_blank');
+            }
+        }
+
+        // Preview & Aspect Ratio Modal
+        function openPreview(itemId) {
+            const item = wallpapersList.find(w => w.id === itemId);
+            if (!item) return;
+
+            activeModalWallpaper = item;
+            modalImage.src = item.url;
+            document.getElementById('modal-tag').textContent = `${item.category.toUpperCase()} • 4K HD`;
+            document.getElementById('modal-artist').textContent = `Artist: ${item.artist}`;
+            document.getElementById('modal-dimensions').textContent = item.resolution;
+
+            updateBookmarkModalBtn();
+
+            previewModal.classList.add('modal-active');
+            modalContainer.classList.remove('scale-95');
+            modalContainer.classList.add('scale-100');
+        }
+
+        function closePreview() {
+            previewModal.classList.remove('modal-active');
+            modalContainer.classList.remove('scale-100');
+            modalContainer.classList.add('scale-95');
+        }
+
+        function setAspectFrame(frameClass) {
+            previewFrameContainer.className = `relative ${frameClass} w-full flex items-center justify-center overflow-hidden rounded-2xl border border-white/10 shadow-2xl transition-all duration-300 bg-black/80`;
+        }
+
+        // Bookmarks Storage System
+        function toggleBookmark(itemId) {
+            const item = wallpapersList.find(w => w.id === itemId) || bookmarks.find(b => b.id === itemId);
+            if (!item) return;
+
+            const idx = bookmarks.findIndex(b => b.id === itemId);
+            if (idx > -1) {
+                bookmarks.splice(idx, 1);
+                showToast('Removed from Bookmarks');
+            } else {
+                bookmarks.push(item);
+                showToast('Saved to Bookmarks!');
+            }
+
+            localStorage.setItem('aniWallsBookmarks', JSON.stringify(bookmarks));
+            updateBookmarksUI();
+            renderGallery();
+            if (activeModalWallpaper && activeModalWallpaper.id === itemId) {
+                updateBookmarkModalBtn();
+            }
+        }
+
+        function updateBookmarkModalBtn() {
+            if (!activeModalWallpaper) return;
+            const isSaved = bookmarks.some(b => b.id === activeModalWallpaper.id);
+            const btn = document.getElementById('modal-bookmark-btn');
+            btn.innerHTML = `<i class="${isSaved ? 'fa-solid text-cyber-magenta' : 'fa-regular'} fa-bookmark"></i> ${isSaved ? 'Bookmarked' : 'Favorite'}`;
+        }
+
+        function updateBookmarksUI() {
+            bookmarkCountBadge.textContent = bookmarks.length;
+            bookmarksList.innerHTML = '';
+
+            if (bookmarks.length === 0) {
+                bookmarksList.innerHTML = `
+                    <div class="text-center py-12 text-gray-500 space-y-2">
+                        <i class="fa-regular fa-bookmark text-3xl"></i>
+                        <p class="text-sm">No saved wallpapers yet.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            bookmarks.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'glass-panel p-3 rounded-xl border border-white/10 flex items-center gap-3 relative group bg-black/40';
+                el.innerHTML = `
+                    <img src="${item.url}" alt="${item.category}" class="w-16 h-14 object-cover rounded-lg">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs text-white font-bold truncate">By ${item.artist}</p>
+                        <span class="text-[10px] text-cyber-cyan uppercase font-bold">${item.category}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="downloadWallpaper('${item.url}', '${item.category}')" class="text-cyber-cyan hover:text-white p-2">
+                            <i class="fa-solid fa-download text-xs"></i>
+                        </button>
+                        <button onclick="toggleBookmark('${item.id}')" class="text-gray-500 hover:text-red-400 p-2">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                bookmarksList.appendChild(el);
+            });
+        }
+
+        // Toast Feedback Notice
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 2500);
+        }
+
+        // Custom Cursor Tracker
+        const cursorGlow = document.getElementById('cursor-glow');
+        window.addEventListener('mousemove', (e) => {
+            cursorGlow.style.left = `${e.clientX}px`;
+            cursorGlow.style.top = `${e.clientY}px`;
+        });
+
+        // Particle Canvas Background Loop
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedX = (Math.random() - 0.5) * 0.4;
+                this.speedY = (Math.random() - 0.5) * 0.4;
+                this.color = Math.random() > 0.5 ? '#00f3ff' : '#ff007f';
+                this.alpha = Math.random() * 0.5 + 0.2;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.reset();
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            const count = Math.floor((canvas.width * canvas.height) / 16000);
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animateParticles);
+        }
+
+        // Window Init
+        window.onload = function() {
+            resizeCanvas();
+            initParticles();
+            animateParticles();
+            fetchWallpapers('all');
+            updateBookmarksUI();
+
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                initParticles();
+            });
+
+            // Category Filter Buttons
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.cat-btn').forEach(b => {
+                        b.className = 'cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-white/10 text-gray-400 hover:text-white hover:border-white/30 transition-all shrink-0';
+                    });
+                    btn.className = 'cat-btn px-4 py-2 rounded-xl text-xs font-semibold glass-panel border-cyber-cyan text-cyber-cyan transition-all shrink-0';
+                    currentCategory = btn.dataset.category;
+                    fetchWallpapers(currentCategory);
+                });
+            });
+
+            // Refresh & Load More
+            document.getElementById('fetch-random-btn').addEventListener('click', () => fetchWallpapers(currentCategory));
+            loadMoreBtn.addEventListener('click', () => fetchWallpapers(currentCategory, true));
+
+            // Hero Section Actions
+            document.getElementById('hero-download-btn').addEventListener('click', () => {
+                if (wallpapersList.length > 0) {
+                    downloadWallpaper(wallpapersList[0].url, wallpapersList[0].category);
+                }
+            });
+            document.getElementById('hero-preview-btn').addEventListener('click', () => {
+                if (wallpapersList.length > 0) {
+                    openPreview(wallpapersList[0].id);
+                }
+            });
+
+            // Live Search Inputs
+            [desktopSearchInput, mobileSearchInput].forEach(input => {
+                input.addEventListener('input', (e) => {
+                    currentSearchQuery = e.target.value;
+                    renderGallery();
+                });
+            });
+
+            // Aspect Ratio Switches
+            const aspect169 = document.getElementById('aspect-16-9');
+            const aspect916 = document.getElementById('aspect-9-16');
+            const aspect43 = document.getElementById('aspect-4-3');
+
+            aspect169.addEventListener('click', () => setAspectFrame('frame-16-9'));
+            aspect916.addEventListener('click', () => setAspectFrame('frame-9-16'));
+            aspect43.addEventListener('click', () => setAspectFrame('frame-4-3'));
+
+            document.getElementById('mobile-aspect-16-9').addEventListener('click', () => setAspectFrame('frame-16-9'));
+            document.getElementById('mobile-aspect-9-16').addEventListener('click', () => setAspectFrame('frame-9-16'));
+            document.getElementById('mobile-aspect-4-3').addEventListener('click', () => setAspectFrame('frame-4-3'));
+
+            // Modal Actions
+            document.getElementById('close-modal-btn').addEventListener('click', closePreview);
+            previewModal.addEventListener('click', (e) => {
+                if (e.target === previewModal) closePreview();
+            });
+
+            document.getElementById('modal-download-btn').addEventListener('click', () => {
+                if (activeModalWallpaper) {
+                    downloadWallpaper(activeModalWallpaper.url, activeModalWallpaper.category);
+                }
+            });
+
+            document.getElementById('modal-bookmark-btn').addEventListener('click', () => {
+                if (activeModalWallpaper) {
+                    toggleBookmark(activeModalWallpaper.id);
+                }
+            });
+
+            // Bookmarks Drawer Controls
+            document.getElementById('open-bookmarks-btn').addEventListener('click', () => {
+                bookmarksDrawer.classList.add('drawer-open');
+            });
+            document.getElementById('close-bookmarks-btn').addEventListener('click', () => {
+                bookmarksDrawer.classList.remove('drawer-open');
+            });
+            document.getElementById('clear-bookmarks-btn').addEventListener('click', () => {
+                if (bookmarks.length === 0) return;
+                bookmarks = [];
+                localStorage.setItem('aniWallsBookmarks', JSON.stringify(bookmarks));
+                updateBookmarksUI();
+                renderGallery();
+                showToast('Cleared all bookmarks');
+            });
+        };
+    </script>
+</body>
+</html>
